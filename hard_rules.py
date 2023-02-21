@@ -1,39 +1,68 @@
-import pandas as pd
-
-# 1. A->constant UA = B-> constant UA
-# 2. A->changing(version) UA <= B-> changing(version)UA
-# 3. A and B were in the same IP/routers (we currently still work with ips so we need to make sure the ip didnt jump and we are actually looking at two different routers. this is important because we can see two cookies that are actually in different routers and not actually connected at all but think that they are)
-# 4. A stopped appearing in any ip before B started appearing for the first time
-
-
-def compare_versions(version1: str, version2: str) -> int:
+def versions_key(versions_series):
     """
-    Compare two version strings in the format "x.y.z", where x, y, and z are integers.
-    Returns 1 if version1 is greater than version2, -1 if version1 is less than version2, and 0 if they are equal.
+    Compute integer keys for sorting a pandas Series of version numbers
+    in a natural way.
 
-    Args:
-        version1 (str): First version string to compare.
-        version2 (str): Second version string to compare.
+    Parameters:
+        versions_series (pandas.Series): A Series of version numbers as strings.
 
     Returns:
-        int: 1 if version1 is greater than version2, -1 if version1 is less than version2, and 0 if they are equal.
+        pandas.Series: A Series of integer keys, where each key corresponds to a version number in the input
+        Series and can be used for sorting the version numbers in a natural way.
     """
-    v1 = version1.split(".")
-    v2 = version2.split(".")
+    expanded = versions_series.str.split(".", expand=True).fillna(value="0").astype(int)
+    return (
+        expanded.iloc[:, ::-1] * [10**i for i in range(0, len(expanded.columns))]
+    ).sum(axis=1)
+
+
+def trim_version(version):
+    """
+    Remove any trailing zeros from a version number and return the parts as a list of strings.
+
+    Parameters:
+        version (str): A version number as a string.
+
+    Returns:
+        list of str: A list of string parts with any trailing zeros removed, or the single string '0' if
+        the version number is all zeros.
+    """
+    parts = version.split(".")
+    last_nonzero_part = len(parts)
+    found_non_zero = False
+    for i in range(len(parts) - 1, -1, -1):
+        if int(parts[i]) != 0:
+            last_nonzero_part = i + 1
+            found_non_zero = True
+            break
+    trimmed_parts = parts[:last_nonzero_part]
+    return trimmed_parts if found_non_zero else ["0"]
+
+
+def compare_versions(version1, version2):
+    """
+    Compare two version numbers and return -1, 0, or 1 to indicate whether the first version number is less
+    than, equal to, or greater than the second version number. The comparison is based on the natural order
+    of version numbers, with any trailing zeros treated as unknown.
+
+    Parameters:
+        version1 (str): The first version number as a string.
+        version2 (str): The second version number as a string.
+
+    Returns:
+        int: -1 if version1 is less than version2, 0 if version1 is equal to version2, or 1 if version1
+        is greater than version2.
+    """
+    # split and remove trailing zeros, as we treat them as 'unkown'
+    v1 = trim_version(version1)
+    v2 = trim_version(version2)
+
     len1, len2 = len(v1), len(v2)
     i = 0
 
     while i < len1 or i < len2:
-        if i >= len1:
-            if all(int(n) == 0 for n in v2[i:]):
-                return 0  # version 1 is a prefix of version 2 but the sufix is 0
-            else:
-                return -1
-        if i >= len2:
-            if all(int(n) == 0 for n in v1[i:]):
-                return 0  # version 2 is a prefix of version 1 but the sufix is 0
-            else:
-                return 1
+        if i >= len1 or i >= len2:
+            return 0  # if one is a prefix of the other then for our purposes they are equal
 
         if int(v1[i]) < int(v2[i]):
             return -1  # version 1 is less than version 2
@@ -45,78 +74,85 @@ def compare_versions(version1: str, version2: str) -> int:
     return 0  # version 1 is equal to version 2
 
 
-def constUA(row: pd.Series[any]) -> pd.Series[any]:
+def constUA(row):
     """
-    Extracts the columns "brand", "model", "os", "browser", and "advertisedbrowser" from a row.
+    Return a pandas Series containing the 'brand', 'model', 'os', 'browser', and 'advertisedbrowser' columns
+    of the input row. This function is used to extract the constant columns that are used to identify the user agent.
 
-    Args:
-        row (pd.Series): A row of a Pandas DataFrame.
+    Parameters:
+        row (pandas.Series): A row from a pandas DataFrame representing the constant part of the user agent.
 
     Returns:
-        pd.Series: pandas Series with only the needed features
+        pandas.Series: A Series containing the constant part of the user agent
+        of the input row.
     """
     return row[["brand", "model", "os", "browser", "advertisedbrowser"]]
 
 
-def constUAconsistent(row1: pd.Series, row2: pd.Series) -> bool:
+def constUAconsistent(row1, row2):
     """
-    Check if the columns 'brand', 'model', 'os', 'browser', and 'advertisedbrowser' are equal between two pandas DataFrame rows.
+    Determine whether two rows representing user agents have the same constant identifying information.
+    This function is used to check if two user agents belong to the same device and browser.
+
+    Parameters:
+        row1 (pandas.Series): A row from a pandas DataFrame representing a user agent.
+        row2 (pandas.Series): Another row from a pandas DataFrame representing a user agent.
 
     Returns:
-        True if the columns are equal, False otherwise.
+        bool: True if the constant part of of the two rows are equal, False otherwise.
     """
     return constUA(row1).equals(constUA(row2))
 
 
-def changinUAconsistent(row1: pd.Series, row2: pd.Series) -> bool:
+def changinUAconsistent(row1, row2):
     """
-    Check if the versions of 'os' and 'browser' in two pandas DataFrame rows are consistent.
+    Determine whether two rows representing user agents have consistent version information.
+    This function is used to check if two user agents can belong to the same user.
+
+    Parameters:
+        row1 (pandas.Series): A row from a pandas DataFrame representing a user agent.
+        row2 (pandas.Series): Another row from a pandas DataFrame representing a user agent.
 
     Returns:
-        True if the versions are consistent, False otherwise.
+        bool: True if the 'osversion' column of row1 is less than or equal to the 'osversion' column of row2,
+        and the 'browserversion' column of row1 is less than or equal to the 'browserversion' column of row2,
+        False otherwise.
     """
-    os_consistent = compare_versions(row1["osversion"], row2["osversion"]) < 0
+    os_consistent = compare_versions(row1["osversion"], row2["osversion"]) <= 0
     browser_consistent = (
-        compare_versions(row1["browserversion"], row2["browserversion"]) < 0
+        compare_versions(row1["browserversion"], row2["browserversion"]) <= 0
     )
     return os_consistent and browser_consistent
 
 
-def time_intersection(row1: pd.Series, row2: pd.Series) -> bool:
+def candidate_cookies(df, cookie1, cookie2):
     """
-    Check if the timestamps of two pandas DataFrame rows intersect.
+    Given a DataFrame `df` containing web analytics data, and the IDs of two cookies `cookie1` and `cookie2`,
+    returns a boolean indicating whether these two cookies are considered "candidates" for being the same user, based on the following criteria:
 
-    Returns:
-        True if the timestamps intersect, False otherwise.
-    """
-    row1["timestamp"] < row2["timestamp"]
+    1. The first (earliest) event associated with `cookie1` occurred before the last (most recent) event associated with `cookie2`.
+       In this case, the function returns True if and only if the "constant" parts of the user agents (browser, browser version, OS,
+       OS version) associated with the last event of `cookie1` and the first event of `cookie2` are the same AND the "changing"
+       parts of these user agents are consistent (that is, the OS and browser versions associated with the last event of `cookie1`
+       are either equal to or older than the versions associated with the first event of `cookie2`).
 
+    2. The first event associated with `cookie2` occurred before the last event associated with `cookie1`.
+       In this case, the function returns True if and only if the "constant" parts of the user agents associated with the first event
+       of `cookie1` and the last event of `cookie2` are the same AND the "changing" parts of these user agents are consistent (that
+       is, the OS and browser versions associated with the first event of `cookie1` are either equal to or older than the versions
+       associated with the last event of `cookie2`).
 
-def candidate_cookies(df: pd.DataFrame, cookie1: str, cookie2: str) -> bool:
-    """Given a dataframe `df` and two cookie identifiers `cookie1` and `cookie2`,
-    returns True if the two cookies are candidates for being the same user based on
-    the user agent and timestamp data in the dataframe, and False otherwise.
-
-    Args:
-        df: A pandas DataFrame containing data on user behavior, including columns
-            for "iiqid" (cookie identifier), "brand", "model", "os", "osversion",
-            "browser", "browserversion", "advertisedbrowser", and "timestamp".
-        cookie1: A string identifying the first cookie to compare.
-        cookie2: A string identifying the second cookie to compare.
-
-    Returns:
-        A boolean value indicating whether the two cookies are candidates for being
-        the same user based on their user agent and timestamp data in the dataframe.
+    If neither of the above conditions is satisfied, the function returns False.
     """
     df_cookie1 = df[df["iiqid"] == cookie1]
     df_cookie2 = df[df["iiqid"] == cookie2]
     first_ck1, last_ck1 = (
-        df_cookie1[df_cookie1["timestamp"].min()],
-        df_cookie1[df_cookie1["timestamp"].max()],
+        df_cookie1.iloc[df_cookie1["timestamp"].argmin()],
+        df_cookie1.iloc[df_cookie1["timestamp"].argmax()],
     )
     first_ck2, last_ck2 = (
-        df_cookie2[df_cookie2["timestamp"].min()],
-        df_cookie2[df_cookie2["timestamp"].max()],
+        df_cookie2.iloc[df_cookie2["timestamp"].argmin()],
+        df_cookie2.iloc[df_cookie2["timestamp"].argmax()],
     )
     if last_ck1["timestamp"] < first_ck2["timestamp"]:
         return constUAconsistent(last_ck1, first_ck2) and changinUAconsistent(
