@@ -1,4 +1,4 @@
-- [] Unnormalize the plot
-- [] Add column 1 to the plot
-- [] Add user agent criterion
-- [] Soft margin
+- [ ] Unnormalize the plot
+- [ ] Add column 1 to the plot
+- [ ] Add user agent criterion
+- [ ] Soft margin
