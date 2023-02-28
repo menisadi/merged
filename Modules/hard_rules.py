@@ -1,3 +1,8 @@
+from functools import cmp_to_key
+
+MINUS_INF_VERSION = "0.0.0.0"
+
+
 def versions_key(versions_series):
     """
     Compute integer keys for sorting a pandas Series of version numbers
@@ -72,6 +77,18 @@ def compare_versions(version1, version2):
         i += 1
 
     return 0  # version 1 is equal to version 2
+
+
+def min_ver(hh_ua_vers):
+    key_func = cmp_to_key(compare_versions)
+    min_ver = min(hh_ua_vers, key=key_func)
+    return min_ver
+
+
+def max_ver(hh_ua_vers):
+    key_func = cmp_to_key(compare_versions)
+    max_ver = max(hh_ua_vers, key=key_func)
+    return max_ver
 
 
 def constUA(row):

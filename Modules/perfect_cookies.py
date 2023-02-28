@@ -1,3 +1,9 @@
+import re
+
+import hard_rules
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import numpy as np
 import pandas as pd
 
 
@@ -42,11 +48,31 @@ def preprocessing(data):
     return data
 
 
-def count_perfect_coolies(data, maid=0):
-    if maid != 0:
-        only_relevant_maid = data[data["maid"] == maid]
+def maid2int(m):
+    maid_dict = {"maid": 4, "third_party": 7}
+    return maid_dict[m]
+
+
+def int2maid(m_number):
+    maid_int_dict = {4: "maid", 7: "third_party"}
+    return maid_int_dict[m_number]
+
+
+def count_perfect_cookies(data, maid=None):
+    if maid != None:
+        if isinstance(maid, int):
+            only_relevant_maid = data[data["maid"] == maid]
+        else:
+            only_relevant_maid = data[data["maid"] == maid2int(maid)]
     else:
         only_relevant_maid = data
+
+    # filter out versions which are not in the standard format
+    # they are rare but breaks the following steps
+    pattern = re.compile(r"^\d+(\.\d+)*$")
+    only_relevant_maid = only_relevant_maid[
+        only_relevant_maid.osversion.str.match(pattern)
+    ]
 
     more_than_one = only_relevant_maid.groupby(
         ["hh_id", "brand", "model", "os", "browser", "advertisedbrowser"]
@@ -56,9 +82,16 @@ def count_perfect_coolies(data, maid=0):
         more_than_one.groupby(
             ["hh_id", "brand", "model", "os", "browser", "advertisedbrowser", "iiqid"]
         )
-        .agg({"time": ["min", "max"]})
+        .agg(
+            {
+                "browserversion": [hard_rules.min_ver, hard_rules.max_ver],
+                "osversion": [hard_rules.min_ver, hard_rules.max_ver],
+                "time": ["min", "max"],
+            }
+        )
         .reset_index()
     )
+
     grouped_data.columns = [
         "hh_id",
         "brand",
@@ -67,9 +100,14 @@ def count_perfect_coolies(data, maid=0):
         "browser",
         "advertisedbrowser",
         "iiqid",
+        "min_browser_ver",
+        "max_browser_ver",
+        "min_os_ver",
+        "max_os_ver",
         "min_time",
         "max_time",
     ]
+
     grouped_data = grouped_data.sort_values(
         by=["hh_id", "brand", "model", "os", "browser", "advertisedbrowser", "min_time"]
     )
@@ -80,8 +118,34 @@ def count_perfect_coolies(data, maid=0):
         .shift(1)
         .fillna(pd.Timestamp.min)
     )
+    grouped_data["prev_max_browser_ver"] = (
+        grouped_data.groupby(
+            ["hh_id", "brand", "model", "os", "browser", "advertisedbrowser"]
+        )["max_browser_ver"]
+        .shift(1)
+        .fillna(hard_rules.MINUS_INF_VERSION)
+    )
+    grouped_data["prev_max_os_ver"] = (
+        grouped_data.groupby(
+            ["hh_id", "brand", "model", "os", "browser", "advertisedbrowser"]
+        )["max_os_ver"]
+        .shift(1)
+        .fillna(hard_rules.MINUS_INF_VERSION)
+    )
     full_valid_rows = grouped_data[
-        grouped_data["min_time"] > grouped_data["prev_max_time"]
+        (grouped_data["min_time"] > grouped_data["prev_max_time"])
+        & (
+            np.vectorize(hard_rules.compare_versions)(
+                grouped_data["min_browser_ver"], grouped_data["prev_max_browser_ver"]
+            )
+            >= 0
+        )
+        & (
+            np.vectorize(hard_rules.compare_versions)(
+                grouped_data["min_os_ver"], grouped_data["prev_max_os_ver"]
+            )
+            >= 0
+        )
     ]
 
     original_rows_per_hhua = grouped_data.groupby(
@@ -129,3 +193,62 @@ def count_perfect_coolies(data, maid=0):
     non_mergable = (uq_cookies - mergable).sort_values(by="2", ascending=False)
 
     return mergable, non_mergable, uq_cookies
+
+
+def plot_cookies_dist(data, maid=None):
+    maid_number = None
+    if maid is not None:
+        if isinstance(maid, int):
+            maid_number = maid
+        else:
+            maid_number = maid2int(maid)
+
+    df = preprocessing(data)
+
+    m, n, t = count_perfect_cookies(df, maid_number)
+
+    HH_UA = [
+        "hh_id",
+        "brand",
+        "model",
+        "os",
+        "browser",
+        "advertisedbrowser",
+    ]
+
+    fig, axs = plt.subplots(nrows=4, ncols=2)
+    fig.set_figheight(16)
+    fig.set_figwidth(12)
+    plt.subplots_adjust(hspace=0.5)
+    fig.suptitle(f"Mergable VS Non-Mergable\n\n{int2maid(maid_number)}")
+
+    total_count = (
+        df[df.maid == maid_number].groupby(HH_UA).iiqid.nunique().reset_index()
+    )
+    top_browsers = (
+        total_count.groupby("browser").size().sort_values(ascending=False).index[:8]
+    )
+
+    for i, b in enumerate(top_browsers):
+        all_unique_hh_ua = (
+            total_count[total_count["browser"] == b].iiqid.value_counts().sum()
+        )
+
+        browser_comparison = pd.concat([n.loc[b], m.loc[b]], axis=1)
+        browser_comparison.columns = ["Non Mergable", "Mergable"]
+        browser_comparison_normalized = browser_comparison.div(all_unique_hh_ua, axis=0)
+
+        ax = axs.flatten()[i]
+        browser_comparison_normalized.plot(kind="bar", stacked=True, ax=ax, legend=0)
+        ax.title.set_text(f"{b} : total : {all_unique_hh_ua}")
+        ax.set_xlabel("")
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+        handles, labels = ax.get_legend_handles_labels()
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            fontsize="medium",
+            bbox_to_anchor=(0.5, 0.05),
+        )
+    plt.show()
