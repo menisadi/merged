@@ -1,5 +1,5 @@
 - [x] Unnormalize the plot
 - [x] Add column 1 to the plot
-- [ ] Add user agent criterion
+- [x] Add user agent criterion
 - [ ] Soft margin
 - [ ] Clean notebook
