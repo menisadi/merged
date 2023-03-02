@@ -228,6 +228,15 @@ def plot_cookies_dist(data, maid=None):
     top_browsers = (
         total_count.groupby("browser").size().sort_values(ascending=False).index[:8]
     )
+    top_browsers = [b for b in top_browsers if b in t.index]
+    not_enough_browsers = len(top_browsers) < 8
+    i = 0
+    while not_enough_browsers and i < len(t.index):
+        relevant_browsers = t.sort_values(by="2", ascending=False).index
+        if relevant_browsers[i] not in top_browsers:
+            top_browsers.append(relevant_browsers[i])
+        i += 1
+        not_enough_browsers = len(top_browsers) < 8
 
     for i, b in enumerate(top_browsers):
         all_unique_hh_ua = (
