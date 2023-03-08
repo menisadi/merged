@@ -81,14 +81,12 @@ def compare_versions(version1, version2):
 
 def min_ver(hh_ua_vers):
     key_func = cmp_to_key(compare_versions)
-    min_ver = min(hh_ua_vers, key=key_func)
-    return min_ver
+    return min(hh_ua_vers, key=key_func)
 
 
 def max_ver(hh_ua_vers):
     key_func = cmp_to_key(compare_versions)
-    max_ver = max(hh_ua_vers, key=key_func)
-    return max_ver
+    return max(hh_ua_vers, key=key_func)
 
 
 def constUA(row):
