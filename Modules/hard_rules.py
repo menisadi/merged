@@ -1,5 +1,7 @@
 from functools import cmp_to_key
 
+from lnds import longest_non_decreasing_subsequence as lnds
+
 MINUS_INF_VERSION = "0.0.0.0"
 
 
@@ -179,3 +181,21 @@ def candidate_cookies(df, cookie1, cookie2):
         )
 
     return False
+
+
+#######################
+# Unfinished
+#######################
+
+
+def version_serializtion(df):
+    ordered_versions = sorted(
+        df.browserversion.unique(), key=cmp_to_key(compare_versions)
+    )
+    return df["browserversion"].apply(lambda v: ordered_versions.index(v))
+
+
+def denoised_fraction(df):
+    serials = version_serializtion(df)
+    x, y = lnds(serials.values)
+    return len(x) / len(df)
