@@ -196,6 +196,7 @@ def version_serializtion(df):
 
 
 def denoised_fraction(df):
+    df.sort_values(by="time", inplace=True)
     serials = version_serializtion(df)
     x, y = lnds(serials.values)
     return len(x) / len(df)
