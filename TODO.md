@@ -3,3 +3,5 @@
 - [x] Add user agent criterion
 - [ ] Soft margin
 - [ ] Clean notebook
+- [x] Version noise
+- [ ] Time-stamp noise
