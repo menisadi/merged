@@ -1,7 +1,12 @@
 - [x] Unnormalize the plot
 - [x] Add column 1 to the plot
 - [x] Add user agent criterion
-- [ ] Soft margin
+- [x] Soft margin
 - [ ] Clean notebook
 - [x] Version noise
-- [ ] Time-stamp noise
+- [x] Time-stamp noise
+- [ ] Export methods to modules
+- [ ] Random vs Non-Random trial
+-   - [x] Initiate comparison
+-   - [ ] Filter by longest-interval
+-   - [ ] Add missing features
