@@ -51,6 +51,29 @@ def longest_sequence(data, name_str='id', start_str='start', end_str='end'):
 
     return seq
 
+def longest_sequence_range(data, name_str='id', start_str='start', end_str='end'):
+    """
+    Returns the starting and ending points of the longest overlapping sequence of intervals
+    in the given DataFrame.
+
+    Parameters:
+    data (pandas.DataFrame): A pandas DataFrame containing the data to be analyzed.
+    name_str (str): The name of the column containing the unique identifier for each sequence.
+    Default is 'id'.
+    start_str (str): The name of the column containing the starting point for each sequence.
+    Default is 'start'.
+    end_str (str): The name of the column containing the ending point for each sequence.
+    Default is 'end'.
+
+    Returns:
+    tuple: A tuple of two values representing the starting and ending points
+    of the longest overlapping sequence.
+    """
+    chosen_ids = longest_sequence(data, name_str=name_str, start_str=start_str, end_str=end_str)
+    starting_point = data.loc[data[name_str].isin(chosen_ids), start_str].min()
+    ending_point = data.loc[data[name_str].isin(chosen_ids), end_str].max()
+    return starting_point, ending_point
+
 def plot_intervals(data, name_str='id', start_str='start', end_str='end',
                    color='blue', highlight_ids=None, highlight_color='red'):
     """
