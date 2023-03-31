@@ -11,5 +11,9 @@ Finished writing LOTS (longest overlapping time-series).
 Decided to not use it for now (to avoid comlications).
 Added simple filter by longest living cookie (the reboot and change of filtering order seems to work).
 A new bug appeared which made me realize that the non-random is sampled with replacement which is wrong.
-Fixed and now the difference between the random and non-random is really small.
+Fixed and now the difference between the random and non-random is really small.
 😔
+## 2023-03-30
+Added time-difference between the intervals. 
+Added a simple function to LOTS to get the start and end of the sequence.
+Trying hard to squize some result from the difference between the random and non-random, but altough the difference does exists it is way too small. 
